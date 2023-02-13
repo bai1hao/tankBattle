@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>坦克大战</title>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            display: grid;
+            place-items: center;
+        }
+
+        .world {
+            background: burlywood;
+            width: 600px;
+            height: 400px;
+            position: absolute;
+        }
+
+        .player {
+            position: relative;
+        }
+
+        .bullet {
+            position: absolute;
+        }
+
+        .enemy {
+            position: absolute;
+        }
+    </style>
+</head>
+<body>
+<div class="world"></div>
+</body>
+<script>
+    const $ = e => document.querySelector(e)
+    const $$ = e => document.querySelectorAll(e)
+    const baseHeight = 40;
+    const baseWidth = 40
+
+    class Game {
+        constructor() {
+            this.score = 0;
+            this.player = null;
+            this.enemies = [];
+            this.brick = [];
+            this.builder = null;
+            this.render = null;
+            this.level = 1;
+            this.world = $('.world');
+            this.width = $('.world').offsetWidth;
+            this.height = $('.world').offsetHeight;
+            this.arrowDown = false;
+            this.arrowUp = false;
+            this.arrowLeft = false;
+            this.arrowRight = false;
+        }
+
+        //创建element
+        generate(role, className) {
+            role.obj = document.createElement('div')
+            role.obj.classList.add(className)
+            this.world.appendChild(role.obj)
+        }
+
+        //将js对象渲染到element对象
+        renderingBullet(role) {
+            role.obj.style.width = role.width + "px";
+            role.obj.style.height = role.height + "px";
+            role.obj.style.left = role.x + "px";
+            role.obj.style.top = role.y + "px";
+            role.obj.style.borderTopRightRadius = "50%";
+            role.obj.style.borderTopLeftRadius = "50%";
+            role.obj.style.backgroundColor = role.color;
+        }
+
+        renderingTank(role) {
+            role.obj.style.borderBottom = `${role.height}px solid ${role.color}`;
+            role.obj.style.borderLeft = `${role.width / 2}px solid transparent`;
+            role.obj.style.borderRight = `${role.width / 2}px solid transparent`;
+            role.obj.style.width = 0;
+            role.obj.style.borderBottomRightRadius = "50%"
+            role.obj.style.borderBottomLeftRadius = "50%"
+            role.obj.style.left = role.x + "px";
+            role.obj.style.top = role.y + "px";
+            switch (role.toward) {
+                case 'down':
+                    role.obj.style.rotate = "180deg"
+                    break;
+                case 'up':
+                    role.obj.style.rotate = '0deg'
+                    break;
+                case 'left':
+                    role.obj.style.rotate = "-90deg"
+                    break;
+                case 'right':
+                    role.obj.style.rotate = "90deg"
+            }
+        }
+
+        getRandomNum(min, max) {
+            return min + Math.round(Math.random() * (max - min))
+        }
+
+        getRandomToward() {
+            let towards = ['up', 'down', 'left', 'right']
+            return towards[this.getRandomNum(0, 3)]
+        }
+
+        inWorld(role) {
+            console.log(role)
+            return role.x > 0 && role.x + role.width < this.width && role.y > 0 && role.y + role.height < this.height
+        }
+
+        getSpacePlace(role) {
+            //排除世界外
+            while(!this.inWorld(role)){
+                role.x = this.getRandomNum(0, this.width);
+                role.y = this.getRandomNum(0, this.height);
+            }
+            //排除玩家位置
+            while (this.isCollision(role, this.player)) {
+                role.x = this.getRandomNum(0, this.width);
+                role.y = this.getRandomNum(0, this.height);
+            }
+            this.enemies.forEach(e=>{
+                while (this.isCollision(role,e)){
+                    console.log('t')
+                    role.x = this.getRandomNum(0, this.width);
+                    role.y = this.getRandomNum(0, this.height);
+                }
+            })
+        }
+
+        isCollision(role1, role2) {
+            let leftBorder1 = role1.x;
+            let leftBorder2 = role2.x;
+            let rightBorder1 = role1.x + role1.width;
+            let rightBorder2 = role2.x + role2.width;
+
+            let maxLeftBorder = Math.max(leftBorder1, leftBorder2)
+            let minRightBorder = Math.min(rightBorder1, rightBorder2)
+
+            let topBorder1 = role1.y;
+            let topBorder2 = role2.y;
+            let bottomBorder1 = role1.y + role1.height;
+            let bottomBorder2 = role2.y + role2.height;
+
+            let minBottomBorder = Math.min(bottomBorder1, bottomBorder2);
+            let maxTopBorder = Math.max(topBorder1, topBorder2)
+
+            return minBottomBorder > maxTopBorder && maxLeftBorder < minRightBorder;
+        }
+
+        createPlayer(x, y) {
+            this.player = new Player(x, y, baseWidth, baseHeight, 'green', 'up');
+            this.generate(this.player, 'player')
+        }
+
+        createEnemy(count) {
+            for (let i = 0; i < count; i++) {
+                let enemy = new Enemy(this.getRandomNum(0, this.width), this.getRandomNum(0, this.height), baseWidth, baseHeight, 'red', this.getRandomToward())
+                this.getSpacePlace(enemy)
+                this.enemies.push(enemy)
+            }
+            this.enemies.forEach(e => {
+                this.generate(e, 'enemy');
+            })
+        }
+
+        createBullet(bullet, collection) {
+            this.generate(bullet, 'bullet')
+            switch (bullet.toward) {
+                case 'up':
+                    bullet.obj.style.rotate = '0deg';
+                    break;
+                case 'down':
+                    bullet.obj.style.rotate = '180deg';
+                    break;
+                case 'left':
+                    bullet.obj.style.rotate = '-90deg';
+                    break;
+                case 'right':
+                    bullet.obj.style.rotate = '90deg';
+                    break;
+            }
+            collection.push(bullet)
+        }
+        createWall(){
+
+        }
+        //判断边界接触，true为未接触
+        borderListen(role) {
+            if (role.toward === 'down')
+                return role.y < this.height - role.height
+            if (role.toward === 'up')
+                return role.y > 0
+            if (role.toward === 'right')
+                return role.x < this.width - role.width
+            if (role.toward === 'left')
+                return role.x > 0
+        }
+
+        starting() {
+            this.createPlayer(this.width / 2, this.height / 2)
+            this.createEnemy(3);
+            setInterval(() => {
+                this.renderingTank(this.player)
+                this.enemies.forEach(e => {
+                    this.renderingTank(e)
+                })
+                //监听信号，发出移动
+                if (this.player.move && this.borderListen(this.player)) {
+                    if (this.player.toward === 'down') {
+                        this.player.y++;
+                    }
+                    if (this.player.toward === 'up') {
+                        this.player.y--;
+                    }
+                    if (this.player.toward === 'right') {
+                        this.player.x++;
+                    }
+                    if (this.player.toward === 'left') {
+                        this.player.x--
+                    }
+                }
+                //监听生成子弹（移动）
+                this.player.bullets.forEach(e => {
+                    if (this.borderListen(e)) {
+                        switch (e.toward) {
+                            case 'down':
+                                e.y += 2;
+                                break;
+                            case 'up':
+                                e.y -= 2;
+                                break;
+                            case 'right':
+                                e.x += 2;
+                                break;
+                            case 'left':
+                                e.x -= 2;
+                        }
+                    } else {
+                        console.log('no')
+                        console.log(this.player.bullets.indexOf(e))
+                        this.player.bullets.splice(this.player.bullets.indexOf(e), 1)
+                        e.obj.remove();
+                    }
+                    this.renderingBullet(e)
+                })
+            })
+            //监听键盘按下，发出信号
+            window.onkeydown = e => {
+                switch (e.key) {
+                    case 'ArrowDown':
+                        this.player.toward = 'down';
+                        this.player.move = true;
+                        break;
+                    case 'ArrowRight':
+                        this.player.toward = 'right';
+                        this.player.move = true;
+                        break;
+                    case 'ArrowLeft':
+                        this.player.toward = 'left';
+                        this.player.move = true;
+                        break;
+                    case 'ArrowUp':
+                        this.player.toward = 'up';
+                        this.player.move = true;
+                        break;
+                    case ' ':
+                        e.preventDefault();
+                }
+            }
+            window.onkeyup = e => {
+                switch (e.key) {
+                    case 'ArrowDown':
+                        this.player.move = false;
+                        break;
+                    case 'ArrowRight':
+                        this.player.move = false;
+                        break;
+                    case 'ArrowLeft':
+                        this.player.move = false;
+                        break;
+                    case 'ArrowUp':
+                        this.player.move = false;
+                        break;
+                    case ' ':
+                        console.log('shoot')
+                        this.createBullet(this.player.shootOne(), this.player.bullets)
+                        break;
+                }
+            }
+        }
+    }
+
+    //角色对象
+    class Role {
+        constructor(x, y, width, height, color) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.color = color;
+            this.obj = null;
+        }
+    }
+
+    class Tank extends Role {
+        constructor(x, y, width, height, color, toward) {
+            super(x, y, width, height, color);
+            this.bullets = [];
+            this.toward = toward;
+            this.move=false;
+        }
+        shootOne() {
+            let bullet;
+            let size = 10;
+            console.log(this)
+            if (this.toward === 'left')
+                bullet = new Bullet(this.x - size, this.y + this.height / 2 - size / 2, size, size, 'gray', 'left')
+            if (this.toward === "up")
+                bullet = new Bullet(this.x + this.width / 2 - size / 2, this.y - size, size, size, 'gray', 'up')
+            if (this.toward === "right")
+                bullet = new Bullet(this.x + this.width + size, this.y + this.height / 2 - size / 2, size, size, 'gray', 'right')
+            if (this.toward === 'down')
+                bullet = new Bullet(this.x + this.width / 2 - size / 2, this.y + this.height + size, size, size, 'gray', 'down')
+            console.log(this.toward)
+            return bullet;
+        }
+    }
+    class Player extends Tank {
+
+    }
+
+    class Enemy extends Tank {
+
+    }
+
+    class Brick extends Role {
+    }
+
+    class Bullet extends Role {
+        constructor(x, y, width, height, color, toward) {
+            super(x, y, width, height, color);
+            this.toward = toward
+        }
+    }
+
+    let game = new Game();
+    game.starting();
+</script>
+</html>
